@@ -33,9 +33,9 @@ namespace zygiskmodule {
         void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override {
             // Inject if module was loaded, otherwise this would've been unloaded by now (for non-GMS)
             if (!moduleDex.empty()) {
-                LOGD("Injecting payload...");
+                // LOGD("Injecting payload...");
                 injectPayload();
-                LOGI("Payload injected");
+                // LOGI("Payload injected");
             }
         }
 
@@ -78,20 +78,20 @@ namespace zygiskmodule {
             auto fd = api->connectCompanion();
 
             auto size = receiveFile(fd, moduleDex);
-            LOGD("Loaded module payload: %d bytes", size);
+            // LOGD("Loaded module payload: %d bytes", size);
 
             close(fd);
         }
 
         void preSpecialize(const std::string &process) {
-            LOGD("Loading payload...");
+            // LOGD("Loading payload...");
             loadPayload();
-            LOGD("Payload loaded");
+            // LOGD("Payload loaded");
         }
 
         void injectPayload() {
             // First, get the system classloader
-            LOGD("get system classloader");
+            // LOGD("get system classloader");
             auto clClass = env->FindClass("java/lang/ClassLoader");
             auto getSystemClassLoader = env->GetStaticMethodID(clClass, "getSystemClassLoader",
                                                                "()Ljava/lang/ClassLoader;");
@@ -100,23 +100,23 @@ namespace zygiskmodule {
             // Assuming we have a valid mapped module, load it. This is similar to the approach used for
             // Dynamite modules in GmsCompat, except we can use InMemoryDexClassLoader directly instead of
             // tampering with DelegateLastClassLoader's DexPathList.
-            LOGD("create buffer");
+            // LOGD("create buffer");
             auto buf = env->NewDirectByteBuffer(moduleDex.data(), moduleDex.size());
-            LOGD("create class loader");
+            // LOGD("create class loader");
             auto dexClClass = env->FindClass("dalvik/system/InMemoryDexClassLoader");
             auto dexClInit = env->GetMethodID(dexClClass, "<init>",
                                               "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V");
             auto dexCl = env->NewObject(dexClClass, dexClInit, buf, systemClassLoader);
 
             // Load the class
-            LOGD("load class");
+            // LOGD("load class");
             auto loadClass = env->GetMethodID(clClass, "loadClass",
                                               "(Ljava/lang/String;)Ljava/lang/Class;");
             auto entryClassName = env->NewStringUTF("com.yifeplayte.miuseaospsharesheet.module.Main");
             auto entryClassObj = env->CallObjectMethod(dexCl, loadClass, entryClassName);
 
             // Call init. Static initializers don't run when merely calling loadClass from JNI.
-            LOGD("call main");
+            // LOGD("call main");
             auto entryClass = (jclass) entryClassObj;
             auto entryInit = env->GetStaticMethodID(entryClass, "main", "()V");
             env->CallStaticVoidMethod(entryClass, entryInit);
@@ -160,7 +160,7 @@ namespace zygiskmodule {
     static void companionHandler(int remote_fd) {
         // Serve module dex
         auto size = sendFile(remote_fd, MODULE_DEX_PATH);
-        LOGD("Sent module payload: %ld bytes", size);
+        // LOGD("Sent module payload: %ld bytes", size);
     }
 
 }

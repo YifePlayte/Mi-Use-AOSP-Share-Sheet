@@ -25,7 +25,7 @@ object Main {
                 isAccessible = true
                 set(null, resolverActivityStubImplProxy)
             }
-            Log.i(TAG, "Replace ResolverActivityStubImpl success")
+            // Log.i(TAG, "Replace ResolverActivityStubImpl success")
         }.onFailure {
             Log.e(TAG, "Replace ResolverActivityStubImpl failed: $it", it)
         }

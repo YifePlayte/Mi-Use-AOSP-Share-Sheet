@@ -1,6 +1,6 @@
 # Mi Use AOSP Share Sheet
 
-在小米系统下恢复AOSP的分享、打开方式界面。
+在小米系统下恢复AOSP的分享界面。
 
 ### 构建
 

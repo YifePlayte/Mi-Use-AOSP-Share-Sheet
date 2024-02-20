@@ -18,12 +18,13 @@ class ResolverActivityStubImplProxy : ResolverActivityStubImpl() {
                 clazzActivityThread.getMethod("currentApplication").invoke(null) as Application?
             if (mApplication == null) {
                 Log.i(TAG, "currentApplication null!")
-                return true
+                return super.useAospShareSheet()
             }
+            if (mApplication.packageName == "android") return super.useAospShareSheet()
             return Settings.System.getInt(mApplication.contentResolver, "mishare_enabled") != 1
         }.onFailure {
             Log.e(TAG, "useAospShareSheet failed!", it)
         }
-        return true
+        return super.useAospShareSheet()
     }
 }

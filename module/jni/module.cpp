@@ -31,7 +31,7 @@ namespace zygiskmodule {
         }
 
         void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override {
-            // Inject if module was loaded, otherwise this would've been unloaded by now (for non-GMS)
+            // Inject if module was loaded, otherwise this would've been unloaded by now
             if (!moduleDex.empty()) {
                 // LOGD("Injecting payload...");
                 injectPayload();
@@ -84,7 +84,7 @@ namespace zygiskmodule {
         }
 
         void preSpecialize(const std::string &process) {
-            // LOGD("Loading payload...");
+            // LOGD("Loading payload for %s ...", process.c_str());
             loadPayload();
             // LOGD("Payload loaded");
         }

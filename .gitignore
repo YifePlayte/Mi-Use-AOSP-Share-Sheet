@@ -8,8 +8,3 @@
 .externalNativeBuild
 .cxx
 local.properties
-magisk/zygisk
-magisk/*.dex
-magisk/*.zip
-magisk/changelog.md
-magisk/update.json

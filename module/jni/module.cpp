@@ -37,6 +37,7 @@ namespace zygiskmodule {
                 injectPayload();
                 // LOGI("Payload injected");
             }
+            api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
         }
 
         void preServerSpecialize(zygisk::ServerSpecializeArgs *args) override {

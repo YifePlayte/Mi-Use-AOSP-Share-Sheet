@@ -3,6 +3,7 @@ package com.yifeplayte.miuseaospsharesheet.module
 import android.annotation.SuppressLint
 import android.util.Log
 import com.android.internal.app.ResolverActivityStub
+import com.miui.base.MiuiStubRegistry.registerSingleton
 
 @Suppress("unused")
 @SuppressLint("PrivateApi")
@@ -12,13 +13,8 @@ object Main {
     @JvmStatic
     fun main() {
         runCatching {
-            val clazzMiuiStubRegistry = Class.forName("com.miui.base.MiuiStubRegistry")
-            val methodRegisterSingleton =
-                clazzMiuiStubRegistry.declaredMethods.first { it.name == "registerSingleton" }
             val resolverActivityStubImplProxy = ResolverActivityStubImplProxy()
-            methodRegisterSingleton.invoke(
-                null, ResolverActivityStub::class.java, resolverActivityStubImplProxy
-            )
+            registerSingleton(ResolverActivityStub::class.java, resolverActivityStubImplProxy)
             ResolverActivityStub::class.java.declaredFields.firstOrNull {
                 it.name == "sInstance"
             }?.apply {

@@ -47,6 +47,7 @@ android {
 
 dependencies {
     compileOnly(project(":hiddenapi"))
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:4.3")
 }
 
 tasks.register<Zip>("assembleModule") {

@@ -1,9 +1,9 @@
 package com.yifeplayte.miuseaospsharesheet.module
 
 import android.annotation.SuppressLint
+import android.util.ArrayMap
 import android.util.Log
-import com.android.internal.app.ResolverActivityStub
-import com.miui.base.MiuiStubRegistry.registerSingleton
+import com.miui.base.MiuiStubRegistry
 
 @Suppress("unused")
 @SuppressLint("PrivateApi")
@@ -13,17 +13,26 @@ object Main {
     @JvmStatic
     fun main() {
         runCatching {
-            val resolverActivityStubImplProxy = ResolverActivityStubImplProxy()
-            registerSingleton(ResolverActivityStub::class.java, resolverActivityStubImplProxy)
-            ResolverActivityStub::class.java.declaredFields.firstOrNull {
-                it.name == "sInstance"
-            }?.apply {
-                isAccessible = true
-                set(null, resolverActivityStubImplProxy)
-            }
-            // Log.i(TAG, "Replace ResolverActivityStubImpl success")
+            val sManifestStubsField =
+                MiuiStubRegistry::class.java
+                    .getDeclaredField("sManifestStubs")
+                    .apply { isAccessible = true }
+            val updateManifestMethod =
+                MiuiStubRegistry::class.java
+                    .getDeclaredMethod(
+                        "updateManifest",
+                        HashMap::class.java,
+                        ArrayMap::class.java
+                    ).apply { isAccessible = true }
+            val sManifestStubs = sManifestStubsField.get(null)
+            val newProviders = ArrayMap<String, MiuiStubRegistry.ImplProvider<*>>()
+            newProviders["com.android.internal.app.ResolverActivityStub"] =
+                ResolverActivityStubImplProxy.Provider()
+            val updatedManifest = updateManifestMethod.invoke(null, sManifestStubs, newProviders)
+            sManifestStubsField.set(null, updatedManifest)
+            // Log.i(TAG, "Replace ResolverActivityStub provider success")
         }.onFailure {
-            Log.e(TAG, "Replace ResolverActivityStubImpl failed: $it", it)
+            Log.e(TAG, "Replace ResolverActivityStub provider failed: $it", it)
         }
     }
 }

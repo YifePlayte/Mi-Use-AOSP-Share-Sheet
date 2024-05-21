@@ -23,3 +23,9 @@
 -keep class com.yifeplayte.miuseaospsharesheet.module.Main {
     public static void main(...);
 }
+
+# This is generated automatically by the Android Gradle plugin.
+-dontwarn androidx.annotation.NonNull
+-dontwarn androidx.annotation.Nullable
+-dontwarn androidx.annotation.RequiresApi
+-dontwarn androidx.annotation.VisibleForTesting

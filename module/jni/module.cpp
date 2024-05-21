@@ -9,6 +9,8 @@
 #include "zygisk.hpp"
 #include "module.h"
 
+#define PACKAGE_NAME_SYSTEM_SERVER ".android"
+
 namespace zygiskmodule {
 
     class Module : public zygisk::ModuleBase {
@@ -41,7 +43,17 @@ namespace zygiskmodule {
         }
 
         void preServerSpecialize(zygisk::ServerSpecializeArgs *args) override {
-            // Never tamper with system_server
+            std::string process(strdup(PACKAGE_NAME_SYSTEM_SERVER));
+            preSpecialize(process);
+        }
+
+        void postServerSpecialize(const zygisk::ServerSpecializeArgs *args) override {
+            // Inject if module was loaded, otherwise this would've been unloaded by now
+            if (!moduleDex.empty()) {
+                // LOGD("Injecting payload...");
+                injectPayload();
+                // LOGI("Payload injected");
+            }
             api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
         }
 
@@ -113,7 +125,8 @@ namespace zygiskmodule {
             // LOGD("load class");
             auto loadClass = env->GetMethodID(clClass, "loadClass",
                                               "(Ljava/lang/String;)Ljava/lang/Class;");
-            auto entryClassName = env->NewStringUTF("com.yifeplayte.miuseaospsharesheet.module.Main");
+            auto entryClassName = env->NewStringUTF(
+                    "com.yifeplayte.miuseaospsharesheet.module.Main");
             auto entryClassObj = env->CallObjectMethod(dexCl, loadClass, entryClassName);
 
             // Call init. Static initializers don't run when merely calling loadClass from JNI.

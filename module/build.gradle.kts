@@ -4,8 +4,8 @@ plugins {
 }
 
 object Props {
-    const val versionCode = 3
-    const val versionName = "v1.0.2"
+    const val versionCode = 4
+    const val versionName = "v1.0.3"
 }
 
 android {

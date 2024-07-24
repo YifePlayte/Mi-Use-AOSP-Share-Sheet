@@ -78,7 +78,7 @@ tasks.register<Zip>("assembleModule") {
         }
     }
     destinationDirectory.set(buildDir.resolve("outputs/module"))
-    archiveFileName.set("mi-use-aosp-share-sheet-${Props.versionName}.zip")
+    archiveFileName.set("mi-use-aosp-share-sheet.zip")
 }
 
 afterEvaluate {

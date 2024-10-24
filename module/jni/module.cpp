@@ -1,17 +1,49 @@
-#include <cstdlib>
 #include <string>
 #include <vector>
+#include <sstream>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/sendfile.h>
-#include <android/log.h>
 
 #include "zygisk.hpp"
 #include "module.h"
 
-#define PACKAGE_NAME_SYSTEM_SERVER ".android"
+namespace mi_use_aosp_share_sheet {
+    ssize_t xread(int fd, void *buffer, size_t count) {
+        ssize_t total = 0;
+        char *buf = (char *) buffer;
+        while (count > 0) {
+            ssize_t ret = read(fd, buf, count);
+            if (ret < 0) return -1;
+            buf += ret;
+            total += ret;
+            count -= ret;
+        }
+        return total;
+    }
 
-namespace zygiskmodule {
+    ssize_t xwrite(int fd, void *buffer, size_t count) {
+        ssize_t total = 0;
+        char *buf = (char *) buffer;
+        while (count > 0) {
+            ssize_t ret = write(fd, buf, count);
+            if (ret < 0) return -1;
+            buf += ret;
+            total += ret;
+            count -= ret;
+        }
+        return total;
+    }
+
+    std::vector<std::string> split(const std::string &strTotal) {
+        std::vector<std::string> vecResult;
+        std::istringstream iss(strTotal);
+        std::string token;
+
+        while (std::getline(iss, token, '\n')) {
+            vecResult.push_back("/" + token);
+        }
+
+        return std::move(vecResult);
+    }
 
     class Module : public zygisk::ModuleBase {
     public:
@@ -21,164 +53,131 @@ namespace zygiskmodule {
         }
 
         void preAppSpecialize(zygisk::AppSpecializeArgs *args) override {
-            const char *rawProcess = env->GetStringUTFChars(args->nice_name, nullptr);
-            if (rawProcess == nullptr) {
+            api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
+
+            if (!args) return;
+
+            const char *rawDir = env->GetStringUTFChars(args->app_data_dir, nullptr);
+            if (!rawDir) return;
+
+            std::string dir(rawDir);
+            env->ReleaseStringUTFChars(args->app_data_dir, rawDir);
+
+
+            int fd = api->connectCompanion();
+
+            long dexSize = 0;
+
+            xread(fd, &dexSize, sizeof(long));
+
+            LOGD("Dex file size: %ld", dexSize);
+
+            if (dexSize < 1) {
+                close(fd);
                 return;
             }
 
-            std::string process(rawProcess);
-            env->ReleaseStringUTFChars(args->nice_name, rawProcess);
-
-            preSpecialize(process);
-        }
-
-        void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override {
-            // Inject if module was loaded, otherwise this would've been unloaded by now
-            if (!moduleDex.empty()) {
-                // LOGD("Injecting payload...");
-                injectPayload();
-                // LOGI("Payload injected");
-            }
-            api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
-        }
-
-        void preServerSpecialize(zygisk::ServerSpecializeArgs *args) override {
-            std::string process(strdup(PACKAGE_NAME_SYSTEM_SERVER));
-            preSpecialize(process);
-        }
-
-        void postServerSpecialize(const zygisk::ServerSpecializeArgs *args) override {
-            // Inject if module was loaded, otherwise this would've been unloaded by now
-            if (!moduleDex.empty()) {
-                // LOGD("Injecting payload...");
-                injectPayload();
-                // LOGI("Payload injected");
-            }
-            api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
-        }
-
-    private:
-        zygisk::Api *api;
-        JNIEnv *env;
-
-        std::vector<char> moduleDex;
-
-        static int receiveFile(int remote_fd, std::vector<char> &buf) {
-            off_t size;
-            int ret = read(remote_fd, &size, sizeof(size));
-            if (ret < 0) {
-                LOGE("Failed to read size");
-                return -1;
-            }
-
-            buf.resize(size);
-
-            int bytesReceived = 0;
-            while (bytesReceived < size) {
-                ret = read(remote_fd, buf.data() + bytesReceived, size - bytesReceived);
-                if (ret < 0) {
-                    LOGE("Failed to read data");
-                    return -1;
-                }
-
-                bytesReceived += ret;
-            }
-
-            return bytesReceived;
-        }
-
-        void loadPayload() {
-            auto fd = api->connectCompanion();
-
-            auto size = receiveFile(fd, moduleDex);
-            // LOGD("Loaded module payload: %d bytes", size);
-
+            dexVector.resize(dexSize);
+            xread(fd, dexVector.data(), dexSize);
             close(fd);
         }
 
-        void preSpecialize(const std::string &process) {
-            // LOGD("Loading payload for %s ...", process.c_str());
-            loadPayload();
-            // LOGD("Payload loaded");
+        void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override {
+            if (dexVector.empty()) return;
+            injectDex();
         }
 
-        void injectPayload() {
-            // First, get the system classloader
-            // LOGD("get system classloader");
+        void preServerSpecialize(zygisk::ServerSpecializeArgs *args) override {
+            api->setOption(zygisk::DLCLOSE_MODULE_LIBRARY);
+
+            if (!args) return;
+
+            int fd = api->connectCompanion();
+
+            long dexSize = 0;
+
+            xread(fd, &dexSize, sizeof(long));
+
+            LOGD("Dex file size: %ld", dexSize);
+
+            if (dexSize < 1) {
+                close(fd);
+                return;
+            }
+
+            dexVector.resize(dexSize);
+            xread(fd, dexVector.data(), dexSize);
+            close(fd);
+        }
+
+        void postServerSpecialize(const zygisk::ServerSpecializeArgs *args) override {
+            if (dexVector.empty()) return;
+            injectDex();
+        }
+
+    private:
+        zygisk::Api *api = nullptr;
+        JNIEnv *env = nullptr;
+        std::vector<uint8_t> dexVector;
+
+        void injectDex() {
             auto clClass = env->FindClass("java/lang/ClassLoader");
             auto getSystemClassLoader = env->GetStaticMethodID(clClass, "getSystemClassLoader",
                                                                "()Ljava/lang/ClassLoader;");
             auto systemClassLoader = env->CallStaticObjectMethod(clClass, getSystemClassLoader);
 
-            // Assuming we have a valid mapped module, load it. This is similar to the approach used for
-            // Dynamite modules in GmsCompat, except we can use InMemoryDexClassLoader directly instead of
-            // tampering with DelegateLastClassLoader's DexPathList.
-            // LOGD("create buffer");
-            auto buf = env->NewDirectByteBuffer(moduleDex.data(), moduleDex.size());
-            // LOGD("create class loader");
             auto dexClClass = env->FindClass("dalvik/system/InMemoryDexClassLoader");
             auto dexClInit = env->GetMethodID(dexClClass, "<init>",
                                               "(Ljava/nio/ByteBuffer;Ljava/lang/ClassLoader;)V");
-            auto dexCl = env->NewObject(dexClClass, dexClInit, buf, systemClassLoader);
+            auto buffer = env->NewDirectByteBuffer(dexVector.data(), dexVector.size());
+            auto dexCl = env->NewObject(dexClClass, dexClInit, buffer, systemClassLoader);
 
-            // Load the class
-            // LOGD("load class");
             auto loadClass = env->GetMethodID(clClass, "loadClass",
                                               "(Ljava/lang/String;)Ljava/lang/Class;");
-            auto entryClassName = env->NewStringUTF(
-                    "com.yifeplayte.miuseaospsharesheet.module.Main");
+            auto entryClassName = env->NewStringUTF(ENTRY_CLASS_NAME);
             auto entryClassObj = env->CallObjectMethod(dexCl, loadClass, entryClassName);
 
-            // Call init. Static initializers don't run when merely calling loadClass from JNI.
-            // LOGD("call main");
-            auto entryClass = (jclass) entryClassObj;
-            auto entryInit = env->GetStaticMethodID(entryClass, "main", "()V");
-            env->CallStaticVoidMethod(entryClass, entryInit);
+            auto entryPointClass = (jclass) entryClassObj;
+
+            auto entryInit = env->GetStaticMethodID(entryPointClass, "main", "()V");
+            env->CallStaticVoidMethod(entryPointClass, entryInit);
         }
     };
 
-    static off_t sendFile(int remote_fd, const std::string &path) {
-        auto in_fd = open(path.c_str(), O_RDONLY);
-        if (in_fd < 0) {
-            LOGE("Failed to open file %s: %d (%s)", path.c_str(), errno, strerror(errno));
-            return -1;
+    static std::vector<uint8_t> readFile(const char *path) {
+
+        std::vector<uint8_t> vector;
+
+        FILE *file = fopen(path, "rb");
+
+        if (file) {
+            fseek(file, 0, SEEK_END);
+            long size = ftell(file);
+            fseek(file, 0, SEEK_SET);
+
+            vector.resize(size);
+            fread(vector.data(), 1, size, file);
+            fclose(file);
+        } else {
+            LOGE("Couldn't read %s file!", path);
         }
 
-        auto size = lseek(in_fd, 0, SEEK_END);
-        if (size < 0) {
-            LOGERRNO("Failed to get file size");
-            close(in_fd);
-            return -1;
-        }
-        lseek(in_fd, 0, SEEK_SET);
-
-        // Send size first for buffer allocation
-        int ret = write(remote_fd, &size, sizeof(size));
-        if (ret < 0) {
-            LOGERRNO("Failed to send size");
-            close(in_fd);
-            return -1;
-        }
-
-        ret = sendfile(remote_fd, in_fd, nullptr, size);
-        if (ret < 0) {
-            LOGERRNO("Failed to send data");
-            close(in_fd);
-            return -1;
-        }
-
-        close(in_fd);
-        return size;
+        return vector;
     }
 
-    static void companionHandler(int remote_fd) {
-        // Serve module dex
-        auto size = sendFile(remote_fd, MODULE_DEX_PATH);
-        // LOGD("Sent module payload: %ld bytes", size);
-    }
+    static void companion(int fd) {
+        std::vector<uint8_t> dexVector;
 
+        dexVector = readFile(MODULE_DEX_PATH);
+
+        size_t dexSize = dexVector.size();
+
+        xwrite(fd, &dexSize, sizeof(size_t));
+        xwrite(fd, dexVector.data(), dexSize);
+    }
 }
 
-REGISTER_ZYGISK_COMPANION(zygiskmodule::companionHandler)
+// Register our module class and the companion handler function
+REGISTER_ZYGISK_MODULE(mi_use_aosp_share_sheet::Module)
 
-REGISTER_ZYGISK_MODULE(zygiskmodule::Module)
+REGISTER_ZYGISK_COMPANION(mi_use_aosp_share_sheet::companion)

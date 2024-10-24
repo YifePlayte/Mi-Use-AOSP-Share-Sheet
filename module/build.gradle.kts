@@ -51,7 +51,7 @@ dependencies {
 }
 
 tasks.register<Zip>("assembleModule") {
-    val zipTree = zipTree(buildDir.resolve("outputs/apk/release/module-release-unsigned.apk"))
+    val zipTree = zipTree(layout.buildDirectory.asFile.get().resolve("outputs/apk/release/module-release-unsigned.apk"))
     from(zipTree) {
         include("assets/**", "lib/**", "classes.dex")
         exclude("assets/module.prop")
@@ -77,7 +77,7 @@ tasks.register<Zip>("assembleModule") {
                 .replace("%%VERSIONCODE%%", Props.versionCode.toString())
         }
     }
-    destinationDirectory.set(buildDir.resolve("outputs/module"))
+    destinationDirectory.set(layout.buildDirectory.asFile.get().resolve("outputs/module"))
     archiveFileName.set("mi-use-aosp-share-sheet.zip")
 }
 

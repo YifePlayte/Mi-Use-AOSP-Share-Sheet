@@ -29,8 +29,8 @@ mount /data 2>/dev/null
 . /data/adb/magisk/util_functions.sh
 [ $MAGISK_VER_CODE -lt 20400 ] && require_new_magisk
 
-if [[ "$(getprop ro.build.version.sdk)" -lt 34 ]]; then
-  ui_print "Only tested on Android 14."
+if [[ "$(getprop ro.build.version.sdk)" -ne 33 && "$(getprop ro.build.version.sdk)" -ne 34 ]]; then
+  ui_print "Only supported on Android 13 and 14."
   exit 1
 fi
 
